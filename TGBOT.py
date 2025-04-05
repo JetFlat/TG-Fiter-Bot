@@ -131,9 +131,32 @@ async def handle_category_name(message: types.Message, state:FSMContext):
 
     await state.clear()
 
+#Handler which shows all categories which user has already
+@router.message(F.text.in_({'Show categories'}))
+async def show_categories(message:types.Message):
+    user_id = message.from_user.id
+    conn = await connect_to_db()
+
+    categories = await conn.fetch ("""
+        SELECT category_name FROM categories
+        WHERE user_id = $1""", user_id
+    )
+    if categories:
+        category_names = '\n'.join([cat['category_name'] for cat in categories])
+        await message.answer(f'Your categories: \n{category_names}')
+    else:
+        await message.answer('You have no categories yet')
+
+    await conn.close()
+
 async def main():
     print("Bot has been started!")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+#Category handler realized via FSM State machine
+#-> Next step is to add the function which will show all categories of the user
+#-> Add the note to the bot and filter by category
