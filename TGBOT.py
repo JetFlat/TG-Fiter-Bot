@@ -7,8 +7,11 @@ from os import getenv
 from aiogram import Bot, Dispatcher, Router, types, F
 from aiogram.types import Message
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
-from aiogram.filters import Command
+from aiogram.filters import Command, StateFilter
 from dotenv import load_dotenv
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+
 
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
@@ -16,6 +19,10 @@ bot = Bot(token = TOKEN)
 dp = Dispatcher()
 router = Router()
 dp.include_router(router)
+
+
+class CategoryForm(StatesGroup):
+    waiting_for_category_name = State()
 
 
 HELP_COMMANDS = """
@@ -46,12 +53,22 @@ async def connect_to_db():
             )
         """)
         logging.info("Creating 'notes' table if not exists")
-        await conn.execute("""
+        await conn.execute ("""
             CREATE TABLE IF NOT EXISTS notes (
                 id SERIAL PRIMARY KEY,
                 user_id BIGINT REFERENCES users(user_id) ON DELETE CASCADE,
                 content_type TEXT,
-                category TEXT
+                category_id INT REFERENCES categories(id) ON DELETE CASCADE,
+                note_content TEXT
+            )
+        """)
+        logging.info("Creating 'categories' table if not exists")
+        await conn.execute ("""
+            CREATE TABLE IF NOT EXISTS categories (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT REFERENCES users (user_id) ON DELETE CASCADE,
+                category_name TEXT NOT NULL,
+                UNIQUE (user_id, category_name)
             )
         """)
         return conn
@@ -80,15 +97,39 @@ async def start(message: types.Message):
     )
     await message.answer('<b>Hello there</b>', parse_mode='html',reply_markup=markup)
 
-@router.message(F.text.in_({'Help', 'Add a new category'}))
+@router.message(F.text.in_({'Help'}))
 async def handle_reply_buttons(message: types.Message):
-    if message.text == "Help":
-        await message.answer(HELP_COMMANDS)
-    elif message.text == "Add a new category":
-        await message.answer("Name the new category!")
+    await message.answer(HELP_COMMANDS)
 
+#Func to get the name of the category to be added
+@router.message(F.text.in_({'Add a new category'}))
+async def add_category_prompt(message: types.Message, state:FSMContext):
+    #Send a request to user to provide category name
+    await state.set_state (CategoryForm.waiting_for_category_name)
+    await message.answer("Please enter the name of the new category!")
 
+#Handler for the category name. FSMState added to avoid situation of handler to be called somewhere in other part of program
+@router.message(StateFilter(CategoryForm.waiting_for_category_name))
+async def handle_category_name(message: types.Message, state:FSMContext):
+    user_id = message.from_user.id
+    category_name = message.text.strip()
 
+    if not category_name:
+        await message.answer('The name of category can not be empty.')
+        return
+    conn = await connect_to_db()
+    try:
+        await conn.execute(""" 
+            INSERT INTO categories (user_id, category_name)
+            VALUES ($1, $2)
+            ON CONFLICT (user_id, category_name) DO NOTHING
+        """, user_id, category_name)
+        await message.answer(f'A category {category_name} was added!')
+    except Exception as e:
+        logging.error(f"Error creating category: {e}")
+        await message.answer("There was an error while creating the category.")
+
+    await state.clear()
 
 async def main():
     print("Bot has been started!")
