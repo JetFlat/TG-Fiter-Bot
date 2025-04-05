@@ -49,7 +49,7 @@ async def connect_to_db():
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS notes (
                 id SERIAL PRIMARY KEY,
-                user_id BIGINT REFERENCES users(user_id),
+                user_id BIGINT REFERENCES users(user_id) ON DELETE CASCADE,
                 content_type TEXT,
                 category TEXT
             )
@@ -64,6 +64,15 @@ async def connect_to_db():
 #Command start - 2 buttons added, will be added some more after
 @router.message(Command('start'))
 async def start(message: types.Message):
+    conn = await connect_to_db()
+    user_id = message.from_user.id
+    user_name = message.from_user.username
+    first_name = message.from_user.first_name
+
+    await conn.execute('''
+        INSERT INTO users (user_id, username, first_name) 
+        VALUES ($1, $2, $3)
+        ON CONFLICT (user_id) DO NOTHING''', user_id, user_name, first_name)
 
     markup = ReplyKeyboardMarkup(
         keyboard = [[KeyboardButton(text='Help'), KeyboardButton(text='Add a new category'),
