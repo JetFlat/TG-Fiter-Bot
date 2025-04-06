@@ -142,7 +142,31 @@ def build_inline_keyboard(buttons: list[InlineKeyboardButton], row_width: int = 
 async def handle_forwarded(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     content = message.text or message.caption or ""
-    await state.update_data(note_content = content)
+
+    content_type = None
+    note_content = None
+
+    if message.text:
+        content_type = 'text'
+        note_content = message.text
+    elif message.caption and message.photo:
+        content_type = 'photo'
+        note_content = message.photo[-1].file_id
+    elif message.sticker:
+        content_type = 'sticker'
+        note_content = message.sticker.file_id
+    elif message.video:
+        content_type = 'video'
+        note_content = message.video.file_id
+    elif message.document:
+        content_type = 'document'
+        note_content = message.document.file_id
+    else:
+        await message.answer("Этот тип сообщения пока не поддерживается.")
+        return
+
+    await state.update_data(note_content=note_content, content_type=content_type)
+
 
     conn = await connect_to_db()
     categories = await  conn.fetch('SELECT id, category_name FROM categories WHERE user_id=$1', user_id)
@@ -166,7 +190,9 @@ async def save_note_callback(callback:types.CallbackQuery, state:FSMContext):
     user_id = callback.from_user.id
     category_id = int(callback.data.split("_")[-1])
     state_data = await state.get_data()
+
     content = state_data.get('note_content')
+    content_type = state_data.get('content_type')
 
     if not content:
         await callback.message.edit_text('Your note is empty')
@@ -176,7 +202,7 @@ async def save_note_callback(callback:types.CallbackQuery, state:FSMContext):
 
     await conn.execute (""" 
         INSERT INTO notes (user_id, category_id, content_type, note_content)
-        VALUES ($1, $2, $3, $4)""", user_id, category_id, 'text', content
+        VALUES ($1, $2, $3, $4)""", user_id, category_id, content_type, content
     )
 
     await conn.close()
