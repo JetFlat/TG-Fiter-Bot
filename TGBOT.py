@@ -23,6 +23,7 @@ dp.include_router(router)
 
 class CategoryForm(StatesGroup):
     waiting_for_category_name = State()
+    waiting_for_note_text = State()
 
 
 HELP_COMMANDS = """
@@ -78,7 +79,7 @@ async def connect_to_db():
 
 
 
-#Command start - 2 buttons added, will be added some more after
+#Command start - NEED TO ADD CALLBACK TO BUTTONS
 @router.message(Command('start'))
 async def start(message: types.Message):
     conn = await connect_to_db()
@@ -92,7 +93,7 @@ async def start(message: types.Message):
         ON CONFLICT (user_id) DO NOTHING''', user_id, user_name, first_name)
 
     markup = ReplyKeyboardMarkup(
-        keyboard = [[KeyboardButton(text='Help'), KeyboardButton(text='Add a new category'),
+        keyboard = [[KeyboardButton(text='Help'), KeyboardButton(text='Add a note') , KeyboardButton(text='Add a new category'),
                      KeyboardButton(text='Language'),KeyboardButton(text='Show categories')]], resize_keyboard=True,
     )
     await message.answer('<b>Hello there</b>', parse_mode='html',reply_markup=markup)
@@ -135,6 +136,52 @@ def build_inline_keyboard(buttons: list[InlineKeyboardButton], row_width: int = 
     keyboard = [buttons[i:i + row_width] for i in range(0, len(buttons), row_width)]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
+
+#Handler of forwarded messages
+@router.message(F.forward_from | F.forward_from_chat | F.forward_sender_name)
+async def handle_forwarded(message: types.Message, state: FSMContext):
+    user_id = message.from_user.id
+    content = message.text or message.caption or ""
+    await state.update_data(note_content = content)
+
+    conn = await connect_to_db()
+    categories = await  conn.fetch('SELECT id, category_name FROM categories WHERE user_id=$1', user_id)
+    await conn.close()
+
+    if not categories:
+        await message.answer('You still have no any category.')
+        return
+
+    buttons = [
+        InlineKeyboardButton(text = cat['category_name'], callback_data= f'save_note_cat_{cat["id"]}' )
+        for cat in categories
+    ]
+    keyboard = build_inline_keyboard(buttons, row_width=2)
+
+    await message.answer('Choose category for this note: ', reply_markup=keyboard)
+
+#Handler for saving notes by category
+@router.callback_query(F.data.startswith('save_note_cat_'))
+async def save_note_callback(callback:types.CallbackQuery, state:FSMContext):
+    user_id = callback.from_user.id
+    category_id = int(callback.data.split("_")[-1])
+    state_data = await state.get_data()
+    content = state_data.get('note_content')
+
+    if not content:
+        await callback.message.edit_text('Your note is empty')
+        return
+
+    conn = await connect_to_db()
+
+    await conn.execute (""" 
+        INSERT INTO notes (user_id, category_id, content_type, note_content)
+        VALUES ($1, $2, $3, $4)""", user_id, category_id, 'text', content
+    )
+
+    await conn.close()
+    await callback.message.edit_text('Note saves successfully!')
+    await state.clear()
 #Handler which shows all categories which user has already
 @router.message(F.text.in_({'Show categories'}))
 async def show_categories(message:types.Message):
