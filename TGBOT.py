@@ -131,6 +131,10 @@ async def handle_category_name(message: types.Message, state:FSMContext):
 
     await state.clear()
 
+def build_inline_keyboard(buttons: list[InlineKeyboardButton], row_width: int = 2) -> InlineKeyboardMarkup:
+    keyboard = [buttons[i:i + row_width] for i in range(0, len(buttons), row_width)]
+    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+
 #Handler which shows all categories which user has already
 @router.message(F.text.in_({'Show categories'}))
 async def show_categories(message:types.Message):
@@ -138,15 +142,20 @@ async def show_categories(message:types.Message):
     conn = await connect_to_db()
 
     categories = await conn.fetch ("""
-        SELECT category_name FROM categories
+        SELECT id, category_name FROM categories
         WHERE user_id = $1""", user_id
     )
-    if categories:
-        category_names = '\n'.join([cat['category_name'] for cat in categories])
-        await message.answer(f'Your categories: \n{category_names}')
-    else:
+    if not categories:
         await message.answer('You have no categories yet')
 
+    buttons = [
+        InlineKeyboardButton(text=cat['category_name'], callback_data=f"note_cat_{cat['id']}")
+        for cat in categories
+    ]
+
+    keyboard = build_inline_keyboard(buttons, row_width=3)
+
+    await message.answer(f'Your caterogies:', reply_markup=keyboard)
     await conn.close()
 
 async def main():
@@ -158,5 +167,5 @@ if __name__ == "__main__":
 
 
 #Category handler realized via FSM State machine
-#-> Next step is to add the function which will show all categories of the user
+#-> Next step is to make all catergories in the shown list clickable with link to this cat's items
 #-> Add the note to the bot and filter by category
