@@ -21,7 +21,7 @@ dp = Dispatcher()
 router = Router()
 dp.include_router(router)
 
-
+#Class to determine State (status) for functions with call back to be called ONLY when needed (e.g. when spec. button is pressed)
 class CategoryForm(StatesGroup):
     waiting_for_category_name = State()
     waiting_for_note_text = State()
@@ -100,9 +100,10 @@ async def start(message: types.Message):
 
     markup = ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text='Help'), KeyboardButton(text='Add a note'), KeyboardButton(text='Add a new category'),
-             KeyboardButton(text='Language'), KeyboardButton(text='Show categories'),
-             KeyboardButton(text='Show my notes')]], resize_keyboard=True,
+            [KeyboardButton(text='Help'), KeyboardButton(text='Add a note')],
+            [KeyboardButton(text='Add a new category'),KeyboardButton(text='Language')],
+            [KeyboardButton(text='Show categories'), KeyboardButton(text='Show my notes')]
+        ], resize_keyboard=True,
     )
     await message.answer('<b>Hello there</b>', parse_mode='html', reply_markup=markup)
 
@@ -143,85 +144,72 @@ async def handle_category_name(message: types.Message, state: FSMContext):
 
     await state.clear()
 
-
+#Function for inline keyboard
 def build_inline_keyboard(buttons: list[InlineKeyboardButton], row_width: int = 2) -> InlineKeyboardMarkup:
     keyboard = [buttons[i:i + row_width] for i in range(0, len(buttons), row_width)]
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
-
-
+#Handler for direct and forwarded msg
 @router.message(
-    F.forward_from | F.forward_from_chat | F.forward_sender_name | F.photo | F.video | F.document | F.audio | F.voice | F.sticker)
-async def handle_forwarded(message: types.Message, state: FSMContext):
+    (F.forward_from.as_("has_forward") |
+     F.forward_from_chat.as_("has_forward_chat") |
+     F.forward_sender_name.as_("has_forward_name") |
+     F.photo.as_("has_photo") |
+     F.video.as_("has_video") |
+     F.document.as_("has_doc") |
+     F.audio.as_("has_audio") |
+     F.voice.as_("has_voice") |
+     F.sticker.as_("has_sticker") |
+     (F.text & ~F.text.in_({"Show categories", "Show my notes", "Help", "Add a note", "Add a new category", "Language"})))
+)
+async def handle_forwarded_and_direct(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     caption = message.caption or ""
-
-    # Checking content type and getting file_id
     content_type = None
     note_content = None
     file_id = None
     forward_chat_id = None
     forward_message_id = None
 
+    if message.photo:
+        content_type = 'photo'
+        file_id = message.photo[-1].file_id
+        note_content = caption
+    elif message.video:
+        content_type = 'video'
+        file_id = message.video.file_id
+        note_content = caption
+    elif message.document:
+        content_type = 'document'
+        file_id = message.document.file_id
+        note_content = caption
+    elif message.audio:
+        content_type = 'audio'
+        file_id = message.audio.file_id
+        note_content = caption
+    elif message.voice:
+        content_type = 'voice'
+        file_id = message.voice.file_id
+        note_content = caption
+    elif message.sticker:
+        content_type = 'sticker'
+        file_id = message.sticker.file_id
+        note_content = "Sticker"
+    elif message.text:
+        content_type = 'text'
+        note_content = message.text
+    else:
+        await message.answer("Этот тип сообщения пока не поддерживается.")
+        return
 
     if message.forward_from_chat or message.forward_from or message.forward_sender_name:
         forward_chat_id = getattr(message.forward_from_chat, 'id', None)
         forward_message_id = message.forward_from_message_id
-        content_type = 'forwarded'
-        note_content = message.text or message.caption or "forwarded message"
 
-        # For media check and save to file_id
-        if message.photo:
-            file_id = message.photo[-1].file_id
-            content_type = 'photo'
-        elif message.video:
-            file_id = message.video.file_id
-            content_type = 'video'
-        elif message.document:
-            file_id = message.document.file_id
-            content_type = 'document'
-        elif message.audio:
-            file_id = message.audio.file_id
-            content_type = 'audio'
-        elif message.voice:
-            file_id = message.voice.file_id
-            content_type = 'voice'
-        elif message.sticker:
-            file_id = message.sticker.file_id
-            content_type = 'sticker'
+        if not note_content:
+            note_content = "forwarded message"
+        content_type = f"forwarded_{content_type}" if content_type else "forwarded"
 
-    # if not forwarded
-    else:
-        if message.text:
-            content_type = 'text'
-            note_content = message.text
-        elif message.photo:
-            content_type = 'photo'
-            file_id = message.photo[-1].file_id
-            note_content = caption
-        elif message.video:
-            content_type = 'video'
-            file_id = message.video.file_id
-            note_content = caption
-        elif message.document:
-            content_type = 'document'
-            file_id = message.document.file_id
-            note_content = caption
-        elif message.audio:
-            content_type = 'audio'
-            file_id = message.audio.file_id
-            note_content = caption
-        elif message.voice:
-            content_type = 'voice'
-            file_id = message.voice.file_id
-            note_content = caption
-        elif message.sticker:
-            content_type = 'sticker'
-            file_id = message.sticker.file_id
-            note_content = "Sticker"
-        else:
-            await message.answer("Этот тип сообщения пока не поддерживается.")
-            return
 
     await state.update_data(
         note_content=note_content,
@@ -232,13 +220,15 @@ async def handle_forwarded(message: types.Message, state: FSMContext):
         forward_message_id=forward_message_id
     )
 
+
     conn = await connect_to_db()
     categories = await conn.fetch('SELECT id, category_name FROM categories WHERE user_id=$1', user_id)
     await conn.close()
 
     if not categories:
-        await message.answer('You still have no any category.')
+        await message.answer('У вас пока нет ни одной категории.')
         return
+
 
     buttons = [
         InlineKeyboardButton(text=cat['category_name'], callback_data=f'save_note_cat_{cat["id"]}')
@@ -246,8 +236,7 @@ async def handle_forwarded(message: types.Message, state: FSMContext):
     ]
     keyboard = build_inline_keyboard(buttons, row_width=2)
 
-    await message.answer('Choose category for this note: ', reply_markup=keyboard)
-
+    await message.answer('Выберите категорию для этой заметки:', reply_markup=keyboard)
 
 
 @router.callback_query(F.data.startswith('save_note_cat_'))
