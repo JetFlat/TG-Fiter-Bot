@@ -25,6 +25,7 @@ dp.include_router(router)
 class CategoryForm(StatesGroup):
     waiting_for_category_name = State()
     waiting_for_note_text = State()
+    waiting_for_search = State()
 
 
 HELP_COMMANDS = """
@@ -100,7 +101,7 @@ async def start(message: types.Message):
 
     markup = ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text='Help'), KeyboardButton(text='Add a note')],
+            [KeyboardButton(text='Help'), KeyboardButton(text='Search')],
             [KeyboardButton(text='Add a new category'),KeyboardButton(text='Language')],
             [KeyboardButton(text='Show categories'), KeyboardButton(text='Show my notes')]
         ], resize_keyboard=True,
@@ -151,16 +152,17 @@ def build_inline_keyboard(buttons: list[InlineKeyboardButton], row_width: int = 
 
 #Handler for direct and forwarded msg
 @router.message(
-    (F.forward_from.as_("has_forward") |
-     F.forward_from_chat.as_("has_forward_chat") |
-     F.forward_sender_name.as_("has_forward_name") |
-     F.photo.as_("has_photo") |
-     F.video.as_("has_video") |
-     F.document.as_("has_doc") |
-     F.audio.as_("has_audio") |
-     F.voice.as_("has_voice") |
-     F.sticker.as_("has_sticker") |
-     (F.text & ~F.text.in_({"Show categories", "Show my notes", "Help", "Add a note", "Add a new category", "Language"})))
+    StateFilter(None),  # Ensure we're not in any state
+    F.forward_from.as_("has_forward") |
+    F.forward_from_chat.as_("has_forward_chat") |
+    F.forward_sender_name.as_("has_forward_name") |
+    F.photo.as_("has_photo") |
+    F.video.as_("has_video") |
+    F.document.as_("has_doc") |
+    F.audio.as_("has_audio") |
+    F.voice.as_("has_voice") |
+    F.sticker.as_("has_sticker") |
+    (F.text & ~F.text.in_({"Show categories", "Show my notes", "Help", "Add a note", "Add a new category", "Language", "Search"}))
 )
 async def handle_forwarded_and_direct(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
@@ -564,6 +566,143 @@ async def show_category_notes(callback: CallbackQuery, state: FSMContext):
     await state.update_data(notes=notes, current_index=0, category_name=category["category_name"])
     await callback.message.delete()  # Удаляем сообщение с категориями
     await display_note(callback.message.chat.id, notes[0], 0, len(notes), state)
+
+# #Handler for search button
+@router.message(F.text.in_({'Search'}))
+async def search_note(message: types.Message, state: FSMContext):
+    await state.set_state(CategoryForm.waiting_for_search)
+    await message.answer('What are you searching for?')
+
+
+@router.message(StateFilter(CategoryForm.waiting_for_search))
+async def search_note_query(message: types.Message, state: FSMContext):
+    search_query = message.text
+    user_id = message.from_user.id
+
+    if not search_query:
+        await message.answer('Can not be empty. Please, try again.')
+        return
+
+    await state.update_data(query=search_query, page=0)
+    await search_results_page(message, state)
+
+
+async def search_results_page(message: Message or CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    search_query = data.get("query")
+    page = data.get("page", 0)
+    per_page = 5
+
+
+    if isinstance(message, Message):
+        user_id = message.from_user.id
+        chat_id = message.chat.id
+    else:
+        user_id = message.from_user.id
+        chat_id = message.message.chat.id
+        await message.answer()
+
+    conn = await connect_to_db()
+
+    total_count = await conn.fetchval('''
+        SELECT COUNT(*) 
+        FROM notes n
+        JOIN categories c ON n.category_id = c.id
+        WHERE n.user_id = $1 
+        AND (
+            n.note_content ILIKE $2 
+            OR n.caption ILIKE $2
+        )
+    ''', user_id, f'%{search_query}%')
+
+    search_results = await conn.fetch('''
+        SELECT n.id, n.note_content, n.content_type, n.file_id, c.category_name, n.caption, 
+               n.forward_chat_id, n.forward_message_id
+        FROM notes n
+        JOIN categories c ON n.category_id = c.id
+        WHERE n.user_id = $1 
+        AND (
+            n.note_content ILIKE $2 
+            OR n.caption ILIKE $2
+        )
+        ORDER BY n.id DESC
+        LIMIT $3 OFFSET $4
+    ''', user_id, f'%{search_query}%', per_page, page * per_page)
+
+    await conn.close()
+
+    if not search_results and page == 0:
+        if isinstance(message, Message):
+            await message.answer(f"Nothing found on '{search_query}'")
+        else:
+            await bot.send_message(chat_id, f"Nothing found on '{search_query}'")
+        await state.clear()
+        return
+
+    #Current page and total number of pages
+    max_page = (total_count - 1) // per_page if total_count > 0 else 0
+
+
+    info_message = f"Search result '{search_query}' (page {page + 1}/{max_page + 1}, total found: {total_count}):"
+    if isinstance(message, Message):
+        await message.answer(info_message)
+    else:
+        await bot.send_message(chat_id, info_message)
+
+    notes_with_index = []
+    for i, note in enumerate(search_results):
+        notes_with_index.append({
+            'id': note['id'],
+            'note_content': note['note_content'],
+            'content_type': note['content_type'],
+            'file_id': note['file_id'],
+            'caption': note['caption'],
+            'category_name': note['category_name'],
+            'forward_chat_id': note['forward_chat_id'],
+            'forward_message_id': note['forward_message_id']
+        })
+
+    await state.update_data(notes=notes_with_index)
+
+    for i, note in enumerate(notes_with_index):
+        await display_note(chat_id, note, i, len(notes_with_index), state)
+
+    nav_buttons = []
+    if page > 0:
+        nav_buttons.append(InlineKeyboardButton(text="⬅️ Back", callback_data="search_prev"))
+    if page < max_page:
+        nav_buttons.append(InlineKeyboardButton(text="Forward ➡️", callback_data="search_next"))
+
+    if nav_buttons:
+        nav_keyboard = InlineKeyboardMarkup(inline_keyboard=[nav_buttons])
+        if isinstance(message, Message):
+            await message.answer("Nav through the results:", reply_markup=nav_keyboard)
+        else:
+            await bot.send_message(chat_id, "Nav through the results:", reply_markup=nav_keyboard)
+
+    await state.clear()
+
+    if isinstance(message, Message):
+        await message.answer('Search is completed. For new query press the button "Search".')
+    else:
+        await bot.send_message(chat_id, 'Search is completed. For new query press the button "Search".')
+
+#Buttons for navigation in search
+@router.callback_query(F.data == "search_prev")
+async def process_search_prev(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    current_page = data.get("page", 0)
+    if current_page > 0:
+        await state.update_data(page=current_page - 1)
+    await search_results_page(callback, state)
+
+
+@router.callback_query(F.data == "search_next")
+async def process_search_next(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+    current_page = data.get("page", 0)
+    await state.update_data(page=current_page + 1)
+    await search_results_page(callback, state)
 
 
 async def main():

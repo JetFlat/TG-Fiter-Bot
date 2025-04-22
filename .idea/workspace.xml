@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="AnalysisUIOptions">
+    <option name="ANALYZE_INJECTED_CODE" value="false" />
+  </component>
   <component name="AutoImportSettings">
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
     <list default="true" id="26c6d6fa-c46f-4793-8cb8-41d70ffd363b" name="Changes" comment="Bot was remade giving now possibility to see all the types of forwarded messages">
-      <change afterPath="$PROJECT_DIR$/languages.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/TGBOT.py" beforeDir="false" afterPath="$PROJECT_DIR$/TGBOT.py" afterDir="false" />
     </list>
@@ -33,16 +35,18 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Python.FastAPI.executor&quot;: &quot;Run&quot;,
-    &quot;Python.TGBOT.executor&quot;: &quot;Run&quot;,
-    &quot;Python.TGBot.executor&quot;: &quot;Run&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Python.FastAPI.executor": "Run",
+    "Python.TGBOT.executor": "Run",
+    "Python.TGBot.executor": "Run",
+    "Python.languages.executor": "Run",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "git-widget-placeholder": "main",
+    "run.code.analysis.last.selected.profile": "aDefault"
   }
-}</component>
+}]]></component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
