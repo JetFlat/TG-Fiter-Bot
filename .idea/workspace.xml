@@ -10,6 +10,7 @@
     <list default="true" id="26c6d6fa-c46f-4793-8cb8-41d70ffd363b" name="Changes" comment="Bot was remade giving now possibility to see all the types of forwarded messages">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/TGBOT.py" beforeDir="false" afterPath="$PROJECT_DIR$/TGBOT.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/languages.py" beforeDir="false" afterPath="$PROJECT_DIR$/languages.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

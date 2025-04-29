@@ -75,11 +75,24 @@ async def connect_to_db():
                 category_id INT REFERENCES categories(id) ON DELETE CASCADE,
                 note_content TEXT,
                 caption TEXT,
-                file_id TEXT,
                 forward_chat_id BIGINT,
-                forward_message_id INT
+                forward_message_id INT,
+                message_group_id TEXT
             )
         """)
+
+        logging.info("Creating 'media_files' table if not exists")
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS media_files (
+                id SERIAL PRIMARY KEY,
+                note_id INT REFERENCES notes(id) ON DELETE CASCADE,
+                file_id TEXT NOT NULL,
+                file_type TEXT NOT NULL,
+                caption TEXT,
+                position INT DEFAULT 0
+            )
+        """)
+
         return conn
     except Exception as e:
         logging.error(f'Error connected to database: {e}')
@@ -152,7 +165,7 @@ def build_inline_keyboard(buttons: list[InlineKeyboardButton], row_width: int = 
 
 #Handler for direct and forwarded msg
 @router.message(
-    StateFilter(None),  # Ensure we're not in any state
+    StateFilter(None),
     F.forward_from.as_("has_forward") |
     F.forward_from_chat.as_("has_forward_chat") |
     F.forward_sender_name.as_("has_forward_name") |
@@ -162,7 +175,9 @@ def build_inline_keyboard(buttons: list[InlineKeyboardButton], row_width: int = 
     F.audio.as_("has_audio") |
     F.voice.as_("has_voice") |
     F.sticker.as_("has_sticker") |
-    (F.text & ~F.text.in_({"Show categories", "Show my notes", "Help", "Add a note", "Add a new category", "Language", "Search"}))
+    F.media_group_id.as_("media_group") |
+    (F.text & ~F.text.in_(
+        {"Show categories", "Show my notes", "Help", "Add a note", "Add a new category", "Language", "Search"}))
 )
 async def handle_forwarded_and_direct(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
@@ -172,36 +187,140 @@ async def handle_forwarded_and_direct(message: types.Message, state: FSMContext)
     file_id = None
     forward_chat_id = None
     forward_message_id = None
+    media_files = []
+    message_group_id = message.media_group_id
+
+    if message_group_id:
+        album_data = await state.get_data()
+        existing_media = album_data.get('media_files', [])
+
+        if message.photo:
+            content_type = 'photo'
+            file_id = message.photo[-1].file_id
+            media_files = existing_media + [{
+                'file_id': file_id,
+                'file_type': 'photo',
+                'caption': caption
+            }]
+        elif message.video:
+            content_type = 'video'
+            file_id = message.video.file_id
+            media_files = existing_media + [{
+                'file_id': file_id,
+                'file_type': 'video',
+                'caption': caption
+            }]
+        elif message.document:
+            content_type = 'document'
+            file_id = message.document.file_id
+            media_files = existing_media + [{
+                'file_id': file_id,
+                'file_type': 'document',
+                'caption': caption
+            }]
+        elif message.audio:
+            content_type = 'audio'
+            file_id = message.audio.file_id
+            media_files = existing_media + [{
+                'file_id': file_id,
+                'file_type': 'audio',
+                'caption': caption
+            }]
+
+        note_content = album_data.get('note_content', message.text or caption)
+
+        await state.update_data(
+            media_files=media_files,
+            content_type='media_group',
+            note_content=note_content,
+            message_group_id=message_group_id,
+            caption=caption,
+            forward_chat_id=message.forward_from_chat.id if message.forward_from_chat else None,
+            forward_message_id=message.forward_from_message_id
+        )
+
+        await asyncio.sleep(1)
+
+        if not album_data.get('categories_requested'):
+            await state.update_data(categories_requested=True)
+
+            conn = await connect_to_db()
+            categories = await conn.fetch('SELECT id, category_name FROM categories WHERE user_id=$1', user_id)
+            await conn.close()
+
+            if not categories:
+                await message.answer('You have no any category yet.')
+                return
+
+            buttons = [
+                InlineKeyboardButton(text=cat['category_name'], callback_data=f'save_note_cat_{cat["id"]}')
+                for cat in categories
+            ]
+            keyboard = build_inline_keyboard(buttons, row_width=2)
+
+            await message.answer('Choose category:', reply_markup=keyboard)
+
+        return
 
     if message.photo:
         content_type = 'photo'
         file_id = message.photo[-1].file_id
         note_content = caption
+        media_files = [{
+            'file_id': file_id,
+            'file_type': 'photo',
+            'caption': caption
+        }]
     elif message.video:
         content_type = 'video'
         file_id = message.video.file_id
         note_content = caption
+        media_files = [{
+            'file_id': file_id,
+            'file_type': 'video',
+            'caption': caption
+        }]
     elif message.document:
         content_type = 'document'
         file_id = message.document.file_id
         note_content = caption
+        media_files = [{
+            'file_id': file_id,
+            'file_type': 'document',
+            'caption': caption
+        }]
     elif message.audio:
         content_type = 'audio'
         file_id = message.audio.file_id
         note_content = caption
+        media_files = [{
+            'file_id': file_id,
+            'file_type': 'audio',
+            'caption': caption
+        }]
     elif message.voice:
         content_type = 'voice'
         file_id = message.voice.file_id
         note_content = caption
+        media_files = [{
+            'file_id': file_id,
+            'file_type': 'voice',
+            'caption': caption
+        }]
     elif message.sticker:
         content_type = 'sticker'
         file_id = message.sticker.file_id
         note_content = "Sticker"
+        media_files = [{
+            'file_id': file_id,
+            'file_type': 'sticker',
+            'caption': ""
+        }]
     elif message.text:
         content_type = 'text'
         note_content = message.text
     else:
-        await message.answer("Этот тип сообщения пока не поддерживается.")
+        await message.answer("This type of messages is not suppoerted yet.")
         return
 
     if message.forward_from_chat or message.forward_from or message.forward_sender_name:
@@ -209,28 +328,30 @@ async def handle_forwarded_and_direct(message: types.Message, state: FSMContext)
         forward_message_id = message.forward_from_message_id
 
         if not note_content:
-            note_content = "forwarded message"
+            note_content = "Forwarded message"
+
         content_type = f"forwarded_{content_type}" if content_type else "forwarded"
 
+        logging.info(
+            f"Saving forwarded msg: тип={content_type}, file_id={file_id}, forward_chat_id={forward_chat_id}")
 
     await state.update_data(
         note_content=note_content,
         content_type=content_type,
-        file_id=file_id,
+        media_files=media_files,
         caption=caption,
         forward_chat_id=forward_chat_id,
-        forward_message_id=forward_message_id
+        forward_message_id=forward_message_id,
+        message_group_id=message_group_id
     )
-
 
     conn = await connect_to_db()
     categories = await conn.fetch('SELECT id, category_name FROM categories WHERE user_id=$1', user_id)
     await conn.close()
 
     if not categories:
-        await message.answer('У вас пока нет ни одной категории.')
+        await message.answer('You have no any category yet.')
         return
-
 
     buttons = [
         InlineKeyboardButton(text=cat['category_name'], callback_data=f'save_note_cat_{cat["id"]}')
@@ -238,7 +359,7 @@ async def handle_forwarded_and_direct(message: types.Message, state: FSMContext)
     ]
     keyboard = build_inline_keyboard(buttons, row_width=2)
 
-    await message.answer('Выберите категорию для этой заметки:', reply_markup=keyboard)
+    await message.answer('Choose category for this note:', reply_markup=keyboard)
 
 
 @router.callback_query(F.data.startswith('save_note_cat_'))
@@ -249,25 +370,40 @@ async def save_note_callback(callback: CallbackQuery, state: FSMContext):
 
     content = state_data.get('note_content')
     content_type = state_data.get('content_type')
-    file_id = state_data.get('file_id')
+    media_files = state_data.get('media_files', [])
     caption = state_data.get('caption')
     forward_chat_id = state_data.get('forward_chat_id')
     forward_message_id = state_data.get('forward_message_id')
+    message_group_id = state_data.get('message_group_id')
 
-    if not content and not file_id and not forward_message_id:
-        await callback.message.edit_text('Your note is empty')
+    if not content and not media_files and not forward_message_id:
+        await callback.message.edit_text('Your note is empty.')
         return
 
     conn = await connect_to_db()
 
-    await conn.execute("""
-        INSERT INTO notes (user_id, category_id, content_type, note_content, caption, file_id, forward_chat_id, forward_message_id)
+    note_id = await conn.fetchval("""
+        INSERT INTO notes (
+            user_id, category_id, content_type, note_content, caption, 
+            forward_chat_id, forward_message_id, message_group_id
+        )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-        """, user_id, category_id, content_type, content, caption, file_id, forward_chat_id, forward_message_id
-                       )
+        RETURNING id
+        """,
+                                  user_id, category_id, content_type, content, caption,
+                                  forward_chat_id, forward_message_id, message_group_id
+                                  )
+
+    for idx, media in enumerate(media_files):
+        await conn.execute("""
+            INSERT INTO media_files (note_id, file_id, file_type, caption, position)
+            VALUES ($1, $2, $3, $4, $5)
+            """,
+                           note_id, media['file_id'], media['file_type'], media.get('caption', ''), idx
+                           )
 
     await conn.close()
-    await callback.message.edit_text('Note saved successfully!')
+    await callback.message.edit_text('Note successfully saved!')
     await state.clear()
 
 
@@ -307,7 +443,6 @@ async def show_category_notes(callback: CallbackQuery, state: FSMContext):
 
     conn = await connect_to_db()
 
-
     category = await conn.fetchrow("""
         SELECT category_name FROM categories WHERE id = $1
         """, category_id
@@ -318,9 +453,8 @@ async def show_category_notes(callback: CallbackQuery, state: FSMContext):
         await conn.close()
         return
 
-
     notes = await conn.fetch("""
-        SELECT id, note_content, content_type, file_id, caption, forward_chat_id, forward_message_id
+        SELECT id, note_content, content_type, caption, forward_chat_id, forward_message_id
         FROM notes WHERE user_id = $1 AND category_id = $2
         ORDER BY id
         """, user_id, category_id
@@ -340,7 +474,8 @@ async def show_category_notes(callback: CallbackQuery, state: FSMContext):
 async def get_note_by_id(note_id: int):
     conn = await connect_to_db()
     note = await conn.fetchrow("""
-        SELECT id, note_content, content_type, file_id, caption, forward_chat_id, forward_message_id
+        SELECT id, note_content, content_type, caption, forward_chat_id, 
+               forward_message_id, message_group_id
         FROM notes WHERE id = $1
     """, note_id)
     await conn.close()
@@ -354,7 +489,7 @@ async def show_notes(message: Message, state: FSMContext):
     conn = await connect_to_db()
 
     notes = await conn.fetch("""
-        SELECT n.id, n.note_content, n.content_type, n.file_id, n.caption, n.forward_chat_id, n.forward_message_id, c.category_name
+        SELECT n.id, n.note_content, n.content_type, n.caption, n.forward_chat_id, n.forward_message_id, c.category_name
         FROM notes n
         JOIN categories c ON n.category_id = c.id
         WHERE n.user_id = $1
@@ -374,80 +509,78 @@ async def show_notes(message: Message, state: FSMContext):
 async def display_note(chat_id, note, index, total, state: FSMContext = None):
     content_type = note['content_type']
     note_content = note['note_content']
-    file_id = note.get('file_id')
-    caption = note.get('caption', '')
+    caption = note['caption']
     forward_message_id = note.get('forward_message_id')
     forward_chat_id = note.get('forward_chat_id')
+    message_group_id = note.get('message_group_id')
 
+    conn = await connect_to_db()
+    media_files = await conn.fetch("""
+        SELECT file_id, file_type, caption, position 
+        FROM media_files 
+        WHERE note_id = $1
+        ORDER BY position
+        """, note['id'])
+    await conn.close()
+
+    logging.info(f"Show the note: type={content_type}, id={note['id']}, media: {len(media_files)}")
 
     note_preview = "📝 "
     if 'category_name' in note:
         note_preview += f"[{note['category_name']}] "
 
-    if content_type == 'forwarded':
+    if content_type.startswith('forwarded'):
         note_preview += "📎 Forwarded message"
+    elif content_type == 'media_group':
+        note_preview += f"📷 Album ({len(media_files)} media)"
     else:
         short_text = (note_content[:50] + "...") if note_content and len(note_content) > 50 else (
-                    note_content or "Empty note")
+                note_content or "Empty note")
         note_preview += short_text
 
     try:
-        # Send note
-        if content_type == 'forwarded' and forward_chat_id and forward_message_id:
+        if content_type.startswith('forwarded') and forward_chat_id and forward_message_id:
             try:
-
                 await bot.copy_message(
                     chat_id=chat_id,
                     from_chat_id=forward_chat_id,
                     message_id=forward_message_id
                 )
+                logging.info("The message saved")
             except Exception as e:
-                logging.error(f"Error copying message: {e}")
+                logging.error(f"Error during copying: {e}")
 
-                if file_id:
-                    if content_type == 'photo':
-                        await bot.send_photo(chat_id, file_id, caption=note_content or None)
-                    elif content_type == 'video':
-                        await bot.send_video(chat_id, file_id, caption=note_content or None)
-                    elif content_type == 'document':
-                        await bot.send_document(chat_id, file_id, caption=note_content or None)
-                    elif content_type == 'audio':
-                        await bot.send_audio(chat_id, file_id, caption=note_content or None)
-                    elif content_type == 'voice':
-                        await bot.send_voice(chat_id, file_id, caption=note_content or None)
-                    elif content_type == 'sticker':
-                        await bot.send_sticker(chat_id, file_id)
-                else:
-                    await bot.send_message(chat_id, note_content or "Forwarded message (content not available)")
+
+                if len(media_files) > 0:
+                    await send_media_group(chat_id, media_files, note_content)
+
+                elif note_content:
+                    await bot.send_message(chat_id, f"📝 {note_content}")
+
+        elif content_type == 'media_group':
+
+            if len(media_files) > 0:
+                await send_media_group(chat_id, media_files, note_content)
+            elif note_content:
+                await bot.send_message(chat_id, note_content)
 
         elif content_type == 'text':
-            await bot.send_message(chat_id, note_content or "Empty text note")
+            await bot.send_message(chat_id, note_content or "Empty note")
+        elif len(media_files) > 0:
 
-        elif content_type == 'photo' and file_id:
-            await bot.send_photo(chat_id, file_id, caption=caption or None)
+            if len(media_files) > 1:
+                await send_media_group(chat_id, media_files, note_content)
+            else:
 
-        elif content_type == 'video' and file_id:
-            await bot.send_video(chat_id, file_id, caption=caption or None)
+                media = media_files[0]
 
-        elif content_type == 'document' and file_id:
-            await bot.send_document(chat_id, file_id, caption=caption or None)
-
-        elif content_type == 'audio' and file_id:
-            await bot.send_audio(chat_id, file_id, caption=caption or None)
-
-        elif content_type == 'voice' and file_id:
-            await bot.send_voice(chat_id, file_id, caption=caption or None)
-
-        elif content_type == 'sticker' and file_id:
-            await bot.send_sticker(chat_id, file_id)
-
+                await send_media_file(chat_id, media['file_type'], media['file_id'], note_content or caption or None)
         else:
-            await bot.send_message(chat_id, note_content or "Note (content not available)")
+            await bot.send_message(chat_id, note_content or "Note is not available")
 
     except Exception as e:
-        await bot.send_message(chat_id, f'⚠️ Error displaying note: {str(e)[:50]}')
-        logging.error(f'Error displaying note: {e}')
-
+        await bot.send_message(chat_id, f'⚠️ Error during note displaying: {str(e)[:50]}')
+        logging.error(f'Error during note displaying: {e}')
 
     buttons = [
         [
@@ -456,14 +589,72 @@ async def display_note(chat_id, note, index, total, state: FSMContext = None):
         [
             InlineKeyboardButton(text="⬅️ Back", callback_data=f"note_nav_{index - 1}"),
             InlineKeyboardButton(text=f"{index + 1}/{total}", callback_data="note_count"),
-            InlineKeyboardButton(text="➡️ Next", callback_data=f"note_nav_{index + 1}")
+            InlineKeyboardButton(text="➡️ Forward", callback_data=f"note_nav_{index + 1}")
         ]
     ]
     markup = InlineKeyboardMarkup(inline_keyboard=buttons)
 
-
     await bot.send_message(chat_id, note_preview, reply_markup=markup)
 
+
+async def send_media_group(chat_id, media_files, caption=None):
+    try:
+        media_group = []
+        first_item = True
+
+        for media in media_files:
+            file_type = media['file_type']
+            file_id = media['file_id']
+
+            item_caption = caption if first_item else media.get('caption', '')
+            first_item = False
+
+            if file_type == 'photo':
+                media_group.append(types.InputMediaPhoto(media=file_id, caption=item_caption))
+            elif file_type == 'video':
+                media_group.append(types.InputMediaVideo(media=file_id, caption=item_caption))
+            elif file_type == 'document':
+                media_group.append(types.InputMediaDocument(media=file_id, caption=item_caption))
+            elif file_type == 'audio':
+                media_group.append(types.InputMediaAudio(media=file_id, caption=item_caption))
+
+
+        if media_group:
+
+            await bot.send_media_group(chat_id=chat_id, media=media_group)
+        else:
+
+            if caption:
+                await bot.send_message(chat_id=chat_id, text=caption)
+    except Exception as e:
+        logging.error(f"Error during sending media group: {e}")
+        if caption:
+            await bot.send_message(chat_id=chat_id, text=caption)
+
+        for media in media_files:
+            try:
+                await send_media_file(chat_id, media['file_type'], media['file_id'], media.get('caption', ''))
+            except Exception as inner_e:
+                logging.error(f"Error during fallback file sending: {inner_e}")
+
+async def send_media_file(chat_id, file_type, file_id, caption=None):
+    try:
+        if file_type == 'photo':
+            await bot.send_photo(chat_id, file_id, caption=caption)
+        elif file_type == 'video':
+            await bot.send_video(chat_id, file_id, caption=caption)
+        elif file_type == 'document':
+            await bot.send_document(chat_id, file_id, caption=caption)
+        elif file_type == 'audio':
+            await bot.send_audio(chat_id, file_id, caption=caption)
+        elif file_type == 'voice':
+            await bot.send_voice(chat_id, file_id, caption=caption)
+        elif file_type == 'sticker':
+            await bot.send_sticker(chat_id, file_id)
+        else:
+            logging.warning(f"Unknown type of data: {file_type}")
+    except Exception as e:
+        logging.error(f"Error during file sending {file_type}: {e}")
 
 
 @router.callback_query(F.data.startswith('send_note_'))
@@ -543,7 +734,7 @@ async def handle_note_count(callback: CallbackQuery):
 
 
 @router.callback_query(F.data.startswith('note_cat_'))
-async def show_category_notes(callback: CallbackQuery, state: FSMContext):
+async def show_category_notes_1(callback: CallbackQuery, state: FSMContext):
     category_id = int(callback.data.split("_")[-1])
     user_id = callback.from_user.id
 
@@ -551,7 +742,7 @@ async def show_category_notes(callback: CallbackQuery, state: FSMContext):
     category = await conn.fetchrow("SELECT category_name FROM categories WHERE id = $1", category_id)
 
     notes = await conn.fetch("""
-        SELECT id, note_content, content_type, file_id, caption, forward_chat_id, forward_message_id
+        SELECT id, note_content, content_type, caption, forward_chat_id, forward_message_id
         FROM notes 
         WHERE user_id = $1 AND category_id = $2
         ORDER BY id
