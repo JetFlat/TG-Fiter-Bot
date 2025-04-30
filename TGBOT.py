@@ -784,7 +784,6 @@ async def search_results_page(message: Message or CallbackQuery, state: FSMConte
     page = data.get("page", 0)
     per_page = 5
 
-
     if isinstance(message, Message):
         user_id = message.from_user.id
         chat_id = message.chat.id
@@ -807,7 +806,7 @@ async def search_results_page(message: Message or CallbackQuery, state: FSMConte
     ''', user_id, f'%{search_query}%')
 
     search_results = await conn.fetch('''
-        SELECT n.id, n.note_content, n.content_type, n.file_id, c.category_name, n.caption, 
+        SELECT n.id, n.note_content, n.content_type, c.category_name, n.caption, 
                n.forward_chat_id, n.forward_message_id
         FROM notes n
         JOIN categories c ON n.category_id = c.id
@@ -830,9 +829,7 @@ async def search_results_page(message: Message or CallbackQuery, state: FSMConte
         await state.clear()
         return
 
-    #Current page and total number of pages
     max_page = (total_count - 1) // per_page if total_count > 0 else 0
-
 
     info_message = f"Search result '{search_query}' (page {page + 1}/{max_page + 1}, total found: {total_count}):"
     if isinstance(message, Message):
@@ -846,7 +843,6 @@ async def search_results_page(message: Message or CallbackQuery, state: FSMConte
             'id': note['id'],
             'note_content': note['note_content'],
             'content_type': note['content_type'],
-            'file_id': note['file_id'],
             'caption': note['caption'],
             'category_name': note['category_name'],
             'forward_chat_id': note['forward_chat_id'],

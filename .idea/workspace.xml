@@ -7,10 +7,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="26c6d6fa-c46f-4793-8cb8-41d70ffd363b" name="Changes" comment="Bot was remade giving now possibility to see all the types of forwarded messages">
+    <list default="true" id="26c6d6fa-c46f-4793-8cb8-41d70ffd363b" name="Changes" comment="Display func is remade to display notes correctly.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/TGBOT.py" beforeDir="false" afterPath="$PROJECT_DIR$/TGBOT.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/languages.py" beforeDir="false" afterPath="$PROJECT_DIR$/languages.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -27,6 +26,18 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "JetFlat"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/JetFlat/TG-Fiter-Bot",
+    "accountId": "d62999d5-15c8-4126-bfc8-09778d475796"
+  }
+}]]></component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 7
 }</component>
@@ -72,7 +83,23 @@
       <option name="project" value="LOCAL" />
       <updated>1744774030709</updated>
     </task>
-    <option name="localTasksCounter" value="2" />
+    <task id="LOCAL-00002" summary="Display func is remade to display notes correctly.">
+      <option name="closed" value="true" />
+      <created>1745923172179</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1745923172179</updated>
+    </task>
+    <task id="LOCAL-00003" summary="Display func is remade to display notes correctly.">
+      <option name="closed" value="true" />
+      <created>1745923192039</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1745923192039</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -88,6 +115,7 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Bot was remade giving now possibility to see all the types of forwarded messages" />
-    <option name="LAST_COMMIT_MESSAGE" value="Bot was remade giving now possibility to see all the types of forwarded messages" />
+    <MESSAGE value="Display func is remade to display notes correctly." />
+    <option name="LAST_COMMIT_MESSAGE" value="Display func is remade to display notes correctly." />
   </component>
 </project>
