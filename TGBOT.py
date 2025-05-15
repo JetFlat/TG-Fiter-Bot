@@ -6,6 +6,7 @@ from pyexpat.errors import messages
 
 import asyncpg
 from os import getenv
+from aiohttp import web
 from aiogram import Bot, Dispatcher, Router, types, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
@@ -13,6 +14,7 @@ from aiogram.filters import Command, StateFilter
 from dotenv import load_dotenv
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
@@ -21,6 +23,18 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 router = Router()
 dp.include_router(router)
+
+WEBHOOK_HOST = os.getenv("WEBHOOK_HOST")
+WEBHOOK_PATH = "/webhook"
+WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
+
+async def on_startup(bot: Bot):
+    await bot.set_webhook(WEBHOOK_URL)
+    print(f"Webhook set to: {WEBHOOK_URL}")
+
+async def on_shutdown(bot: Bot):
+    await bot.delete_webhook()
+
 
 #Class to determine State (status) for functions with call-back to be called ONLY when needed (e.g. when spec. button is pressed)
 class CategoryForm(StatesGroup):
@@ -888,10 +902,21 @@ async def process_search_next(callback: CallbackQuery, state: FSMContext):
     await search_results_page(callback, state)
 
 
+# async def main():
+#     print("Bot has been started!")
+#     await dp.start_polling(bot)
+
 async def main():
-    print("Bot has been started!")
-    await dp.start_polling(bot)
+    app = web.Application()
+    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
+    setup_application(app, dp, bot=bot, on_startup=on_startup, on_shutdown=on_shutdown)
+    return app
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    logging.basicConfig(level=logging.INFO)
+    web.run_app(main(), host="0.0.0.0", port=int(os.getenv("PORT", 8080)))
+
+
+# if __name__ == "__main__":
+#     asyncio.run(main())

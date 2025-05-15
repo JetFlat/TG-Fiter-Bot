@@ -7,7 +7,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="26c6d6fa-c46f-4793-8cb8-41d70ffd363b" name="Changes" comment="Still to be added languages and deletion of categories">
+    <list default="true" id="26c6d6fa-c46f-4793-8cb8-41d70ffd363b" name="Changes" comment="External URL connection">
       <change beforePath="$PROJECT_DIR$/TGBOT.py" beforeDir="false" afterPath="$PROJECT_DIR$/TGBOT.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -122,7 +122,15 @@
       <option name="project" value="LOCAL" />
       <updated>1747319025652</updated>
     </task>
-    <option name="localTasksCounter" value="7" />
+    <task id="LOCAL-00007" summary="External URL connection">
+      <option name="closed" value="true" />
+      <created>1747352087939</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1747352087939</updated>
+    </task>
+    <option name="localTasksCounter" value="8" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -141,6 +149,7 @@
     <MESSAGE value="Display func is remade to display notes correctly." />
     <MESSAGE value="Search function reworked and now ok" />
     <MESSAGE value="Still to be added languages and deletion of categories" />
-    <option name="LAST_COMMIT_MESSAGE" value="Still to be added languages and deletion of categories" />
+    <MESSAGE value="External URL connection" />
+    <option name="LAST_COMMIT_MESSAGE" value="External URL connection" />
   </component>
 </project>
