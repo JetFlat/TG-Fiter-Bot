@@ -16,6 +16,7 @@ from aiogram.fsm.state import State, StatesGroup
 
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
+DATABASE_URL = os.getenv("DATABASE_URL")
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 router = Router()
@@ -41,13 +42,8 @@ logging.basicConfig(level=logging.INFO)
 
 async def connect_to_db():
     try:
-        conn = await asyncpg.connect(
-            user='postgres',
-            password='postgres',
-            database='postgres',
-            host='127.0.0.1',
-            port='5432'
-        )
+        conn = await asyncpg.connect(DATABASE_URL)
+
         logging.info("Creating 'users' table if not exists")
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS users (

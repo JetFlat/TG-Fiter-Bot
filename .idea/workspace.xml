@@ -7,7 +7,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="26c6d6fa-c46f-4793-8cb8-41d70ffd363b" name="Changes" comment="Search function reworked and now ok" />
+    <list default="true" id="26c6d6fa-c46f-4793-8cb8-41d70ffd363b" name="Changes" comment="Still to be added languages and deletion of categories">
+      <change beforePath="$PROJECT_DIR$/TGBOT.py" beforeDir="false" afterPath="$PROJECT_DIR$/TGBOT.py" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -104,7 +106,23 @@
       <option name="project" value="LOCAL" />
       <updated>1746014473458</updated>
     </task>
-    <option name="localTasksCounter" value="5" />
+    <task id="LOCAL-00005" summary="Search function reworked and now ok">
+      <option name="closed" value="true" />
+      <created>1747318957285</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1747318957285</updated>
+    </task>
+    <task id="LOCAL-00006" summary="Still to be added languages and deletion of categories">
+      <option name="closed" value="true" />
+      <created>1747319025652</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1747319025652</updated>
+    </task>
+    <option name="localTasksCounter" value="7" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -122,6 +140,7 @@
     <MESSAGE value="Bot was remade giving now possibility to see all the types of forwarded messages" />
     <MESSAGE value="Display func is remade to display notes correctly." />
     <MESSAGE value="Search function reworked and now ok" />
-    <option name="LAST_COMMIT_MESSAGE" value="Search function reworked and now ok" />
+    <MESSAGE value="Still to be added languages and deletion of categories" />
+    <option name="LAST_COMMIT_MESSAGE" value="Still to be added languages and deletion of categories" />
   </component>
 </project>
