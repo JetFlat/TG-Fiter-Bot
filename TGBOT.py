@@ -21,7 +21,7 @@ dp = Dispatcher()
 router = Router()
 dp.include_router(router)
 
-#Class to determine State (status) for functions with call back to be called ONLY when needed (e.g. when spec. button is pressed)
+#Class to determine State (status) for functions with call-back to be called ONLY when needed (e.g. when spec. button is pressed)
 class CategoryForm(StatesGroup):
     waiting_for_category_name = State()
     waiting_for_note_text = State()
