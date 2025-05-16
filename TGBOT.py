@@ -25,7 +25,7 @@ router = Router()
 dp.include_router(router)
 
 WEBHOOK_HOST = os.getenv("WEBHOOK_HOST")
-WEBHOOK_PATH = "https://telegram-note-keeper-bot.onrender.com"
+WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
 async def on_startup(bot: Bot):
