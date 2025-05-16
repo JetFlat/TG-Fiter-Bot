@@ -28,6 +28,13 @@ WEBHOOK_HOST = os.getenv("WEBHOOK_HOST")
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
+async def main():
+    app = web.Application()
+    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
+    setup_application(app, dp, bot=bot, on_startup=on_startup, on_shutdown=on_shutdown)
+    return app
+
+
 async def on_startup(bot: Bot):
     await bot.set_webhook(WEBHOOK_URL)
     print(f"Webhook set to: {WEBHOOK_URL}")
@@ -906,11 +913,7 @@ async def process_search_next(callback: CallbackQuery, state: FSMContext):
 #     print("Bot has been started!")
 #     await dp.start_polling(bot)
 
-async def main():
-    app = web.Application()
-    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
-    setup_application(app, dp, bot=bot, on_startup=on_startup, on_shutdown=on_shutdown)
-    return app
+
 
 
 if __name__ == "__main__":
