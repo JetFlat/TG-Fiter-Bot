@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from help_notes import HELP_COMMANDS
 
 load_dotenv()
 TOKEN = os.getenv("BOT_TOKEN")
@@ -49,13 +50,6 @@ class CategoryForm(StatesGroup):
     waiting_for_note_text = State()
     waiting_for_search = State()
 
-
-HELP_COMMANDS = """
-    /start - initialize bot,
-    /help - bot's commands,
-    /language - choose the language,
-    /show_cat - show my categories
-"""
 
 # Connection to database
 logging.basicConfig(level=logging.INFO)
@@ -194,7 +188,7 @@ def build_inline_keyboard(buttons: list[InlineKeyboardButton], row_width: int = 
     F.sticker.as_("has_sticker") |
     F.media_group_id.as_("media_group") |
     (F.text & ~F.text.in_(
-        {"Show categories", "Show my notes", "Help", "Add a note", "Add a new category", "Language", "Search"}))
+        {"Show categories", "Show my notes", "Help", "Add a note", "Add a new category", "Language", 'Search'}))
 )
 async def handle_forwarded_and_direct(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
